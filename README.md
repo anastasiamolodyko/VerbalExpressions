@@ -1,7 +1,7 @@
 ##GoVerbalExpressions
 - ported from [VerbalExpressions](https://github.com/VerbalExpressions/JSVerbalExpressions)
 
-VerbalExpressions is a PHP library that helps to construct hard regular expressions.
+Hot to use
 
 
 ```go
