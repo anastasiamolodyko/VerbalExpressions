@@ -1,8 +1,9 @@
 ##GoVerbalExpressions
 - ported from [VerbalExpressions](https://github.com/VerbalExpressions/JSVerbalExpressions)
 
-Hot to use
+**PRE-ALPHA**
 
+Hot to use
 
 ```go
 
