@@ -11,7 +11,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/galiievskyi/verbalregex"
+	"github.com/xaockd/verbalregex"
 )
 
 func main() {
