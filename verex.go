@@ -3,17 +3,18 @@ package verbalregex
 import (
 	"fmt"
 	"regexp"
+	"strings"
 )
 
-
 type VerEx struct {
-	prefixes       string
-	suffixes       string
-	source         string
-	replaceLimit   int
-	modifiers      string
-	lastAdded      string
-	Regex          *regexp.Regexp
+	prefixes     string
+	suffixes     string
+	source       string
+	replaceLimit int
+	modifiers    []string
+	lastAdded    string
+	Regex        *regexp.Regexp
+	compiled     bool
 }
 
 func (ve *VerEx) StartOfLine(strict bool) *VerEx {
@@ -39,120 +40,122 @@ func (ve *VerEx) add(value string) *VerEx {
 	ve.lastAdded = value
 	ve.source = fmt.Sprintf("%s%s", ve.source, value)
 
-	return  ve
+	return ve
 }
 
 func (ve *VerEx) GetModifiers() string {
-
-	if ve.modifiers != "" {
-		return fmt.Sprintf(`(?%s)`, ve.modifiers)
-	}
-
-	return ""
+	return strings.Join(ve.modifiers, "")
 }
 
-func (ve *VerEx) Maybe(str string) *VerEx {
-
-	ve.add(fmt.Sprintf("(%s)?", str))
-	
-	return ve
+func (ve *VerEx) Maybe(value string) *VerEx {
+	return ve.add(fmt.Sprintf("(?:%s)?", sanitize(value)))
 }
 
-func (ve *VerEx) Any(str string) *VerEx {
-
-	ve.add(fmt.Sprintf("[%s]", str))
-
-	return ve
+func (ve *VerEx) Any(value string) *VerEx {
+	return ve.add(fmt.Sprintf("[%s]", sanitize(value)))
 }
 
 func (ve *VerEx) Anything() *VerEx {
-
-	ve.add("(.*)")
-
-	return ve
+	return ve.add("(?:.*)")
 }
 
 func (ve *VerEx) AnythingBut(value string) *VerEx {
-
-	ve.add(fmt.Sprintf("([^%s]*)", value))
-
-	return ve
+	return ve.add(fmt.Sprintf("(?:[^%s]*)", sanitize(value)))
 }
 
 func (ve *VerEx) Something() *VerEx {
+	return ve.add("(?:.+)")
+}
 
-	ve.add("(.+)")
-
-	return ve
+func (ve *VerEx) SomethingBut(value string) *VerEx {
+	return ve.add(fmt.Sprintf("(?:[^%s]+)", sanitize(value)))
 }
 
 func (ve *VerEx) Word() *VerEx {
-
-	ve.add("\\w+")
-
-	return ve
+	return ve.add(`\w+`)
 }
 
 func (ve *VerEx) Tab() *VerEx {
-
-	ve.add("\\t")
-
-	return ve
+	return ve.add(`\t`)
 }
 
 func (ve *VerEx) OneOrMore() *VerEx {
+	return ve.add("+")
+}
 
-	ve.add("%s+")
-
-	return ve
+func (ve *VerEx) ZeroOrMore() *VerEx {
+	return ve.add("*")
 }
 
 func (ve *VerEx) Whitespace() *VerEx {
-
-	ve.add("\\s")
-
-	return ve
+	return ve.add(`\s`)
 }
 
-func (ve *VerEx) Then(str string) *VerEx {
+func (ve *VerEx) LineBreak() *VerEx {
+	return ve.add(`(?:(?:\n)|(?:\r\n))`)
+}
 
-	ve.add(fmt.Sprintf("(%s)", str))
+func (ve *VerEx) Br() *VerEx {
+	return ve.LineBreak()
+}
 
-	return ve
+func (ve *VerEx) Then(value string) *VerEx {
+	return ve.add(fmt.Sprintf("(?:%s)", sanitize(value)))
 }
 
 func (ve *VerEx) Find(str string) *VerEx {
 	return ve.Then(str)
 }
 
-func (ve *VerEx) Replace(src, repl string)  string {
-	return ve.MustCompile().Regex.ReplaceAllString(src, repl)
+func (ve *VerEx) AddModifier(value string) *VerEx {
+
+	if !inSlice(ve.modifiers, value) {
+		ve.modifiers = append(ve.modifiers, value)
+	}
+
+	return ve
 }
 
-func (ve *VerEx) Test(value string) bool {
-	return ve.MustCompile().Regex.MatchString(value)
-}
+func (ve *VerEx) RemoveModifier(value string) *VerEx {
 
-func (ve *VerEx) AddModifiers(value string) *VerEx {
-	ve.modifiers = value
+	if inSlice(ve.modifiers, value) {
+
+		for idx, el := range ve.modifiers {
+			if el == value {
+				ve.modifiers = append(ve.modifiers[:idx], ve.modifiers[idx+1])
+			}
+		}
+
+	}
 
 	return ve
 }
 
 func (ve *VerEx) MustCompile() *VerEx {
 
-	ve.Regex =  regexp.MustCompile(ve.GetRegex())
+	if ve.compiled == false {
+		return ve.Recompile()
+	}
 
 	return ve
 }
 
-func (ve *VerEx) Clear() *VerEx {
+func (ve *VerEx) Recompile() *VerEx {
+
+	ve.Regex = regexp.MustCompile(ve.GetRegex())
+	ve.compiled = true
+
+	return ve
+}
+
+func (ve *VerEx) Fresh() *VerEx {
 
 	ve.prefixes = ``
 	ve.suffixes = ``
 	ve.source = ``
-	ve.modifiers = ``
+	ve.modifiers = nil
 	ve.Regex = &regexp.Regexp{}
+	ve.compiled = false
 
 	return ve
 }
@@ -165,8 +168,36 @@ func (ve VerEx) String() string {
 	return ve.GetRegex()
 }
 
-func(ve VerEx) GetNativeRegexp() *regexp.Regexp {
+func (ve VerEx) GetNativeRegexp() *regexp.Regexp {
 	return ve.Regex
 }
 
+func (ve *VerEx) BeginCapture() *VerEx {
 
+	ve.suffixes += `)`
+	ve.add(`(`)
+
+	return ve
+}
+
+func (ve *VerEx) EndCapture() *VerEx {
+
+	ve.suffixes = strings.Replace(ve.suffixes, ")", "", 1)
+	ve.add(`)`)
+
+	return ve
+}
+
+func sanitize(value string) string {
+	return regexp.QuoteMeta(value)
+}
+
+func inSlice(slice []string, needle string) bool {
+	for _, val := range slice {
+		if val == needle {
+			return true
+		}
+	}
+
+	return false
+}
